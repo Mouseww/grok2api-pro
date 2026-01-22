@@ -1,6 +1,6 @@
 services:
   grok2api:
-    image: ghcr.io/chenyme/grok2api:latest
+    image: ghcr.io/miuzhaii/grok2api-pro:latest
     ports:
       - "8000:8000"
     volumes:
