@@ -2,6 +2,18 @@
 
 基于 [chenyme/grok2api](https://github.com/chenyme/grok2api) 的增强版本，重点补齐企业部署所需的多代理池、调用日志追踪与更健壮的配置管理能力。本仓库即为 `grok2api-pro` 的源码，默认暴露 OpenAI 兼容接口 (`/v1/*`) 与管理面板 (`/login`).
 
+## 代理规则速览
+
+- **自动绑定**：有 SSO 时，优先用已绑定且健康的代理；无绑定则从健康代理中轮询选择并自动绑定。
+- **健康切换**：连续失败 3 次标记不健康并解绑所有 SSO；成功会恢复健康并清零失败计数。
+- **代理来源**：支持静态代理 `proxy_url`、多代理 `proxy_urls`、代理池 `proxy_pool_url`，统一进入代理池管理。
+
+详细说明见 `DOCS/PROXY_POLICY.md`。
+
+## 更新日志
+
+请查看 `CHANGELOG.md` 了解每次版本的新增与修复。
+
 ## 与grok2api版的差异
 
 | 能力/特性 | grok2api | grok2api-pro |
@@ -100,5 +112,5 @@ volumes:
 3. **多进程运行异常**：确保 `STORAGE_MODE` 使用 MySQL/Redis，并挂载 `data/` 目录让 proxy/log 状态同步；避免多个实例同时使用本地 file 存储。
 4. **图片/视频 403**：确认 `global.base_url` 指向能被终端访问的域名/IP，且外网能访问 `http://base_url/images/*`。
 
-更多实现细节可参考 `docs/PRO_FEATURES.md` 与 `CHANGELOG.md`。
+更多实现细节可参考 `DOCS/PRO_FEATURES.md` 与 `CHANGELOG.md`。
 
