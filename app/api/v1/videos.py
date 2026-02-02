@@ -10,7 +10,7 @@
 """
 
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Request
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.core.auth import auth_manager
@@ -44,6 +44,7 @@ def _build_error_response(status_code: int, message: str, error_type: str = "inv
 @router.post("", response_model=VideoJob)
 @router.post("/", response_model=VideoJob, include_in_schema=False)
 async def create_video(
+    raw_request: Request,
     request: CreateVideoRequest,
     _: Optional[str] = Depends(auth_manager.verify)
 ) -> VideoJob:
@@ -59,6 +60,14 @@ async def create_video(
         创建的视频任务对象
     """
     try:
+        # 打印完整请求体用于调试
+        try:
+            body = await raw_request.body()
+            logger.info(f"[VideoAPI] 原始请求体: {body.decode('utf-8', errors='replace')}")
+        except Exception as e:
+            logger.warning(f"[VideoAPI] 读取请求体失败: {e}")
+        
+        logger.info(f"[VideoAPI] 解析后请求: {request.model_dump()}")
         logger.info(f"[VideoAPI] 创建视频任务: model={request.model}, prompt={request.prompt[:50]}...")
         
         # 创建任务

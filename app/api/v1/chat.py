@@ -1,6 +1,6 @@
 """聊天API路由 - OpenAI兼容的聊天接口"""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Optional
 from fastapi.responses import StreamingResponse
 
@@ -15,10 +15,17 @@ router = APIRouter(prefix="/chat", tags=["聊天"])
 
 
 @router.post("/completions", response_model=None)
-async def chat_completions(request: OpenAIChatRequest, _: Optional[str] = Depends(auth_manager.verify)):
+async def chat_completions(raw_request: Request, request: OpenAIChatRequest, _: Optional[str] = Depends(auth_manager.verify)):
     """创建聊天补全（支持流式和非流式）"""
     try:
-        logger.info("[Chat] 收到聊天请求")
+        # 打印完整请求体用于调试
+        try:
+            body = await raw_request.body()
+            logger.debug(f"[Chat] 原始请求体: {body.decode('utf-8', errors='replace')[:2000]}")
+        except Exception as e:
+            logger.warning(f"[Chat] 读取请求体失败: {e}")
+        
+        logger.info(f"[Chat] 收到聊天请求: model={request.model}, messages={len(request.messages)}, stream={request.stream}")
 
         # 调用Grok客户端
         result = await GrokClient.openai_to_grok(request.model_dump())
