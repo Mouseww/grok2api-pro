@@ -51,25 +51,18 @@ RUN apt-get update \
         curl \
         tzdata \
     && rm -rf /var/lib/apt/lists/* \
-    # 创建非root用户
-    && groupadd -r grok2api \
-    && useradd -r -g grok2api grok2api \
     # 创建数据目录
-    && mkdir -p /app/data /app/logs \
-    && chown -R grok2api:grok2api /app
+    && mkdir -p /app/data /app/logs
 
 # 从构建阶段复制依赖
 COPY --from=builder /build/deps /app/deps
 
 # 复制应用代码
-COPY --chown=grok2api:grok2api . /app
+COPY . /app
 
 # 复制并设置入口脚本
-COPY --chown=grok2api:grok2api docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
-
-# 切换到非root用户
-USER grok2api
 
 # 暴露端口
 EXPOSE 8000
