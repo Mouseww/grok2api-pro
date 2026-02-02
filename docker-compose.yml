@@ -1,0 +1,124 @@
+# Grok2API Docker Compose 编排文件
+# 支持多种部署模式：文件存储 / MySQL / Redis
+# 
+# 使用方法:
+#   基础部署:     docker-compose up -d
+#   MySQL模式:    docker-compose --profile mysql up -d
+#   Redis模式:    docker-compose --profile redis up -d
+#   完整部署:     docker-compose --profile mysql --profile redis up -d
+#   查看日志:     docker-compose logs -f grok2api
+#   停止服务:     docker-compose down
+
+services:
+  # ============================================
+  # 主服务 - Grok2API
+  # ============================================
+  grok2api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: grok2api:latest
+    container_name: grok2api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8001}:8000"
+    environment:
+      # 存储模式: file / mysql / redis
+      - STORAGE_MODE=${STORAGE_MODE:-file}
+      # 工作进程数 (多进程建议使用 mysql/redis 存储)
+      - WORKERS=${WORKERS:-1}
+      # 数据库连接 (MySQL/Redis模式需要)
+      - DATABASE_URL=${DATABASE_URL:-}
+      # 时区设置
+      - TZ=${TZ:-Asia/Shanghai}
+    volumes:
+      # 数据持久化
+      - ./data:/app/data
+      # 日志持久化（可选）
+      - ./logs:/app/logs
+    networks:
+      - grok2api-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # ============================================
+  # MySQL 数据库 (可选)
+  # 启用: docker-compose --profile mysql up -d
+  # ============================================
+  mysql:
+    image: mysql:8.0
+    container_name: grok2api-mysql
+    profiles:
+      - mysql
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-grok2api_root_password}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-grok2api}
+      - MYSQL_USER=${MYSQL_USER:-grok2api}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-grok2api_password}
+      - TZ=${TZ:-Asia/Shanghai}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+    networks:
+      - grok2api-network
+    command: 
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_connections=1000
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-grok2api_root_password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================
+  # Redis 缓存 (可选)
+  # 启用: docker-compose --profile redis up -d
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: grok2api-redis
+    profiles:
+      - redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - grok2api-network
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+# ============================================
+# 网络配置
+# ============================================
+networks:
+  grok2api-network:
+    driver: bridge
+
+# ============================================
+# 数据卷配置
+# ============================================
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local

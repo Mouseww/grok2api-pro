@@ -1,0 +1,85 @@
+# Grok2API 生产环境编排文件
+# 
+# 使用方法:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 包含: MySQL + Redis + 多工作进程 + 反向代理
+
+services:
+  # ============================================
+  # 主服务 - Grok2API (生产配置)
+  # ============================================
+  grok2api:
+    image: grok2api:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    environment:
+      - STORAGE_MODE=mysql
+      - WORKERS=4
+      - DATABASE_URL=mysql://grok2api:${MYSQL_PASSWORD:-grok2api_password}@mysql:3306/grok2api
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ============================================
+  # MySQL 数据库 (生产配置)
+  # ============================================
+  mysql:
+    profiles: []  # 生产环境移除profile限制，始终启动
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          memory: 256M
+
+  # ============================================
+  # Redis 缓存 (生产配置)
+  # ============================================
+  redis:
+    profiles: []  # 生产环境移除profile限制，始终启动
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 64M
+
+  # ============================================
+  # Nginx 反向代理 (可选)
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: grok2api-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - grok2api
+    networks:
+      - grok2api-network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
