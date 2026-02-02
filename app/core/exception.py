@@ -79,8 +79,20 @@ async def http_exception_handler(_: Request, exc: StarletteHTTPException) -> JSO
     )
 
 
-async def validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """处理验证错误"""
+    from app.core.logger import logger
+    
+    # 记录原始请求体用于调试
+    try:
+        body = await request.body()
+        body_str = body.decode('utf-8', errors='replace')[:2000]
+        logger.warning(f"[Validation] 请求验证失败 - 路径: {request.url.path}")
+        logger.warning(f"[Validation] 原始请求体: {body_str}")
+        logger.warning(f"[Validation] 验证错误: {exc.errors()}")
+    except Exception as e:
+        logger.warning(f"[Validation] 读取请求体失败: {e}")
+    
     errors = exc.errors()
     param = errors[0]["loc"][-1] if errors and errors[0].get("loc") else None
     message = errors[0]["msg"] if errors and errors[0].get("msg") else "请求参数错误"
