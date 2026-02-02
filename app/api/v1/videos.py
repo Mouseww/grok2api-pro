@@ -9,9 +9,11 @@
 - GET /v1/videos/{video_id}/content - 获取视频内容
 """
 
+import base64
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, Request
+from fastapi.responses import FileResponse
+from pydantic import ValidationError
 
 from app.core.auth import auth_manager
 from app.core.logger import logger
@@ -41,11 +43,62 @@ def _build_error_response(status_code: int, message: str, error_type: str = "inv
     }
 
 
+async def _parse_create_video_request(raw_request: Request) -> CreateVideoRequest:
+    """根据内容类型解析创建视频请求"""
+    content_type = raw_request.headers.get("content-type", "").lower()
+
+    try:
+        if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
+            form = await raw_request.form()
+            data: Dict[str, Any] = {}
+            for field in ["prompt", "model", "seconds", "size", "user"]:
+                value = form.get(field)
+                if value not in (None, ""):
+                    data[field] = str(value)
+
+            input_reference_value = form.get("input_reference")
+            input_reference: Optional[str] = None
+
+            if isinstance(input_reference_value, UploadFile):
+                file_bytes = await input_reference_value.read()
+                await input_reference_value.close()
+                if file_bytes:
+                    mime = input_reference_value.content_type or "application/octet-stream"
+                    encoded = base64.b64encode(file_bytes).decode("ascii")
+                    input_reference = f"data:{mime};base64,{encoded}"
+            elif input_reference_value not in (None, ""):
+                input_reference = str(input_reference_value)
+
+            if input_reference:
+                data["input_reference"] = input_reference
+
+            if "seconds" in data:
+                data["seconds"] = str(data["seconds"])
+
+        else:
+            # 默认为JSON
+            data = await raw_request.json()
+
+        return CreateVideoRequest(**data)
+
+    except ValidationError as exc:
+        logger.warning(f"[VideoAPI] 请求体验证失败: {exc.errors()}")
+        raise HTTPException(
+            status_code=400,
+            detail=_build_error_response(400, "无效的视频任务参数", "invalid_request_error")
+        ) from exc
+    except Exception as exc:
+        logger.warning(f"[VideoAPI] 解析请求失败: {exc}")
+        raise HTTPException(
+            status_code=400,
+            detail=_build_error_response(400, "无法解析请求体", "invalid_request_error")
+        ) from exc
+
+
 @router.post("", response_model=VideoJob)
 @router.post("/", response_model=VideoJob, include_in_schema=False)
 async def create_video(
     raw_request: Request,
-    request: CreateVideoRequest,
     _: Optional[str] = Depends(auth_manager.verify)
 ) -> VideoJob:
     """创建视频生成任务
@@ -63,9 +116,11 @@ async def create_video(
         # 打印完整请求体用于调试
         try:
             body = await raw_request.body()
-            logger.info(f"[VideoAPI] 原始请求体: {body.decode('utf-8', errors='replace')}")
+            logger.info(f"[VideoAPI] 原始请求体: {body.decode('utf-8', errors='replace')[:2000]}")
         except Exception as e:
             logger.warning(f"[VideoAPI] 读取请求体失败: {e}")
+
+        request = await _parse_create_video_request(raw_request)
         
         logger.info(f"[VideoAPI] 解析后请求: {request.model_dump()}")
         logger.info(f"[VideoAPI] 创建视频任务: model={request.model}, prompt={request.prompt[:50]}...")
@@ -93,11 +148,11 @@ async def create_video(
 
 @router.post("/generations", response_model=VideoJob, include_in_schema=False)
 async def create_video_generations(
-    request: CreateVideoRequest,
+    raw_request: Request,
     _: Optional[str] = Depends(auth_manager.verify)
 ) -> VideoJob:
     """创建视频生成任务（兼容 /generations 路径）"""
-    return await create_video(request, _)
+    return await create_video(raw_request, _)
 
 
 @router.get("", response_model=VideoListResponse)
