@@ -24,6 +24,8 @@
 - **注意：Grok 的图片直链受 403 限制，系统自动缓存图片到本地。必须正确设置 `Base Url` 以确保图片能正常显示！**
 
 ### 视频生成功能
+
+#### 方式一：通过Chat接口（原生方式）
 - 选择 `grok-imagine-0.9` 模型，传入图片和提示词即可（方式和 OpenAI 的图片分析调用格式一致）
 - 返回格式为 `<video src="{full_video_url}" controls="controls"></video>`
 - **注意：Grok 的视频直链受 403 限制，系统自动缓存图片到本地。必须正确设置 `Base Url` 以确保视频能正常显示！**
@@ -53,6 +55,43 @@ curl https://你的服务器地址/v1/chat/completions \
     ]
   }'
 ```
+
+#### 方式二：通过Video API（OpenAI兼容）
+
+完全兼容 OpenAI Sora Video API 格式，支持异步任务创建与状态查询：
+
+```bash
+# 创建视频生成任务
+curl -X POST https://你的服务器地址/v1/videos \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $GROK2API_API_KEY" \
+  -d '{
+    "model": "sora-2",
+    "prompt": "一只猫在钢琴上弹奏",
+    "seconds": "4",
+    "size": "720x1280"
+  }'
+
+# 返回示例:
+# {
+#   "id": "video_abc123",
+#   "object": "video",
+#   "model": "sora-2",
+#   "status": "queued",
+#   "progress": 0
+# }
+
+# 查询任务状态
+curl https://你的服务器地址/v1/videos/video_abc123 \
+  -H "Authorization: Bearer $GROK2API_API_KEY"
+
+# 下载完成的视频
+curl https://你的服务器地址/v1/videos/video_abc123/content \
+  -H "Authorization: Bearer $GROK2API_API_KEY" \
+  -o my_video.mp4
+```
+
+支持的视频模型：`sora-2`、`sora-2-pro`、`grok-imagine-0.9`
 
 ### 关于 `x_statsig_id`
 
@@ -100,6 +139,12 @@ curl https://你的服务器地址/v1/chat/completions \
 | POST  | `/v1/chat/completions`       | 创建聊天对话（流式/非流式）         | ✅   |
 | GET   | `/v1/models`                 | 获取全部支持模型                   | ✅   |
 | GET   | `/images/{img_path}`         | 获取生成图片文件                   | ❌   |
+| POST  | `/v1/videos`                 | 创建视频生成任务（OpenAI兼容）      | ✅   |
+| GET   | `/v1/videos`                 | 列出视频任务                       | ✅   |
+| GET   | `/v1/videos/{video_id}`      | 获取视频任务状态                   | ✅   |
+| DELETE| `/v1/videos/{video_id}`      | 删除视频任务                       | ✅   |
+| POST  | `/v1/videos/{video_id}/remix`| 混剪视频                           | ✅   |
+| GET   | `/v1/videos/{video_id}/content`| 下载视频内容                     | ✅   |
 
 <br>
 

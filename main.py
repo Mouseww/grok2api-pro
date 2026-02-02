@@ -17,8 +17,10 @@ from app.services.call_log import call_log_service
 from app.api.v1.chat import router as chat_router
 from app.api.v1.models import router as models_router
 from app.api.v1.images import router as images_router
+from app.api.v1.videos import router as videos_router
 from app.api.admin.manage import router as admin_router
 from app.services.mcp import mcp
+from app.services.video_task import video_task_service
 
 # 0. 兼容性检测
 try:
@@ -86,6 +88,10 @@ async def lifespan(app: FastAPI):
     await call_log_service.start()
     logger.info("[Grok2API] 调用日志服务启动完成")
     
+    # 4.55. 启动视频任务服务
+    await video_task_service.start()
+    logger.info("[Grok2API] 视频任务服务启动完成")
+    
     # 4.6. 初始化多代理
     proxy_urls = setting.grok_config.get("proxy_urls", [])
     for proxy_url in proxy_urls:
@@ -120,6 +126,10 @@ async def lifespan(app: FastAPI):
         await call_log_service.shutdown()
         logger.info("[CallLog] 调用日志服务已关闭")
         
+        # 2.6. 关闭视频任务服务
+        await video_task_service.shutdown()
+        logger.info("[VideoTask] 视频任务服务已关闭")
+        
         # 3. 关闭核心服务
         await storage_manager.close()
         logger.info("[Grok2API] 应用关闭成功")
@@ -142,6 +152,7 @@ register_exception_handlers(app)
 # 注册路由
 app.include_router(chat_router, prefix="/v1")
 app.include_router(models_router, prefix="/v1")
+app.include_router(videos_router, prefix="/v1")
 app.include_router(images_router)
 app.include_router(admin_router)
 

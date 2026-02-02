@@ -136,6 +136,37 @@ _MODEL_CONFIG: Dict[str, Dict[str, Any]] = {
         "supported_max_output_tokens": 131072,
         "default_top_p": 0.95,
         "is_video_model": True
+    },
+    # OpenAI Sora兼容模型 - 映射到grok-imagine-0.9
+    "sora-2": {
+        "grok_model": ("grok-3", "MODEL_MODE_FAST"),
+        "rate_limit_model": "grok-3",
+        "cost": {"type": "low_cost", "multiplier": 1, "description": "计1次调用"},
+        "requires_super": False,
+        "display_name": "Sora 2 (Compatible)",
+        "description": "OpenAI Sora 2 compatible video generation model. Powered by Grok Imagine.",
+        "raw_model_path": "openai/sora-2",
+        "default_temperature": 1.0,
+        "default_max_output_tokens": 8192,
+        "supported_max_output_tokens": 131072,
+        "default_top_p": 0.95,
+        "is_video_model": True,
+        "alias_of": "grok-imagine-0.9"
+    },
+    "sora-2-pro": {
+        "grok_model": ("grok-3", "MODEL_MODE_FAST"),
+        "rate_limit_model": "grok-3",
+        "cost": {"type": "low_cost", "multiplier": 1, "description": "计1次调用"},
+        "requires_super": False,
+        "display_name": "Sora 2 Pro (Compatible)",
+        "description": "OpenAI Sora 2 Pro compatible video generation model. Powered by Grok Imagine.",
+        "raw_model_path": "openai/sora-2-pro",
+        "default_temperature": 1.0,
+        "default_max_output_tokens": 8192,
+        "supported_max_output_tokens": 131072,
+        "default_top_p": 0.95,
+        "is_video_model": True,
+        "alias_of": "grok-imagine-0.9"
     }
 }
 
@@ -157,6 +188,9 @@ class Models(Enum):
     GROK_4_EXPERT = "grok-4-expert"
     GROK_4_HEAVY = "grok-4-heavy"
     GROK_IMAGINE_0_9 = "grok-imagine-0.9"
+    # OpenAI Sora兼容模型
+    SORA_2 = "sora-2"
+    SORA_2_PRO = "sora-2-pro"
 
     @classmethod
     def get_model_info(cls, model: str) -> Dict[str, Any]:

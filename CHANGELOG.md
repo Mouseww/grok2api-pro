@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+### Added
+- **OpenAI Video API 兼容接口**：新增 `/v1/videos` 系列端点，完全兼容 OpenAI Sora Video API 规范：
+  - `POST /v1/videos` - 创建视频生成任务
+  - `GET /v1/videos` - 列出视频任务（支持分页）
+  - `GET /v1/videos/{video_id}` - 获取任务状态
+  - `DELETE /v1/videos/{video_id}` - 删除视频任务
+  - `POST /v1/videos/{video_id}/remix` - 混剪视频
+  - `GET /v1/videos/{video_id}/content` - 下载视频内容
+- **视频任务服务**：`app/services/video_task.py` 提供异步视频生成任务管理，支持任务状态持久化到 `data/video_tasks.json`。
+- **Sora 模型兼容**：新增 `sora-2` 和 `sora-2-pro` 模型别名，映射到 `grok-imagine-0.9`，便于使用标准 OpenAI SDK 调用。
+- **视频响应模型**：`app/models/video_schema.py` 定义完整的 OpenAI Video API 请求/响应数据结构。
+
 ### Changed
 - **后台主页统计**：修复 Chat/Image 总剩余统计偏低（未使用 Token 的 `-1` 不再被忽略；SuperSSO 以相关剩余 `max(normal, heavy)` 计入），并新增全局配置 `assumed_chat_quota_per_token`（默认 80）用于未拉取配额时的估算展示。
 - **后台主页统计（分页）**：总剩余统计改为后端全量汇总（新增 `/api/stats/remaining`），不再受 Token 列表分页（默认每页 10 个）影响。

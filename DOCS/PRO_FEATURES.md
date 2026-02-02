@@ -6,7 +6,8 @@
 
 - **调用日志全链路追踪**：`app/services/call_log.py` 提供持久化记录、筛选、统计、清理能力，并在 `app/api/admin/manage.py` 暴露 `/api/logs*` 相关接口。
 - **多代理池与 SSO 绑定**：`app/core/proxy_pool.py` 支持静态 proxy、代理池 API、代理列表 (`proxy_urls`) 混合使用，可针对单个 SSO 固定代理并自动健康检查。
-- **配置/存储增强**：`data/setting.example.toml` 给出完整示例；`storage_manager` 在 File 模式下额外维护 `proxy_state.json` 与 `call_logs.json`，确保重启后仍可恢复绑定、统计数据。
+- **OpenAI Video API 兼容**：`app/api/v1/videos.py` 提供完全兼容 OpenAI Video API 的视频生成接口，支持异步任务创建、状态查询、内容下载。
+- **配置/存储增强**：`data/setting.example.toml` 给出完整示例；`storage_manager` 在 File 模式下额外维护 `proxy_state.json`、`call_logs.json`、`video_tasks.json`，确保重启后仍可恢复绑定、统计数据及视频任务状态。
 - **依赖扩展**：`requirements.txt` 新增 `aiohttp-socks`（代理检测）、`pytest`/`pytest-asyncio`/`hypothesis`（自动化验证）等库，方便编写健康检查脚本或集成测试。
 
 ## 调用日志服务
@@ -19,6 +20,84 @@
   - `GET /api/logs/models`：返回历史上使用过的模型集合；
   - `DELETE /api/logs?max_count=N`：保留最新 N 条或传入 `0` 清空全部。
 - **二次开发建议**：如需打通外部可视化，可在后台接口上方增加 Webhook 推送，或直接读取 `call_logs.json` 构建指标。
+
+## OpenAI Video API 兼容
+
+Pro 版本提供完全兼容 OpenAI Video API 规范的视频生成接口，支持使用标准 OpenAI SDK 进行视频生成。
+
+### 支持的端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/v1/videos` | POST | 创建视频生成任务 |
+| `/v1/videos` | GET | 列出视频任务 |
+| `/v1/videos/{video_id}` | GET | 获取任务状态 |
+| `/v1/videos/{video_id}` | DELETE | 删除视频任务 |
+| `/v1/videos/{video_id}/remix` | POST | 混剪视频 |
+| `/v1/videos/{video_id}/content` | GET | 下载视频内容 |
+
+### 支持的模型
+
+| 模型名称 | 说明 |
+|----------|------|
+| `sora-2` | OpenAI Sora 2 兼容模型，实际由 Grok Imagine 驱动 |
+| `sora-2-pro` | OpenAI Sora 2 Pro 兼容模型 |
+| `grok-imagine-0.9` | 原生 Grok 视频生成模型 |
+
+### 请求示例
+
+```bash
+# 创建视频生成任务
+curl -X POST http://localhost:8001/v1/videos \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "sora-2",
+    "prompt": "A cat playing piano on stage",
+    "seconds": "4",
+    "size": "720x1280"
+  }'
+
+# 查询任务状态
+curl http://localhost:8001/v1/videos/video_abc123 \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# 下载视频
+curl http://localhost:8001/v1/videos/video_abc123/content \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -o video.mp4
+```
+
+### 响应格式
+
+创建任务后返回视频任务对象：
+
+```json
+{
+  "id": "video_abc123",
+  "object": "video",
+  "model": "sora-2",
+  "status": "queued",
+  "progress": 0,
+  "created_at": 1712697600,
+  "size": "720x1280",
+  "seconds": "4",
+  "quality": "standard"
+}
+```
+
+任务完成后状态变为 `completed`，并包含 `video_url` 字段。
+
+### 任务状态说明
+
+- `queued`：任务已创建，等待处理
+- `in_progress`：视频生成中
+- `completed`：生成完成，可下载
+- `failed`：生成失败，查看 `error` 字段获取详情
+
+### 数据持久化
+
+视频任务数据存储在 `data/video_tasks.json`，默认保留 24 小时，最多 1000 条任务记录。
 
 ## 多代理/代理池
 
